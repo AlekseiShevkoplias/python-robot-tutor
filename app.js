@@ -27,6 +27,8 @@ const els = {
   contractPanel: document.querySelector("#contractPanel"),
   staysSameList: document.querySelector("#staysSameList"),
   canChangeList: document.querySelector("#canChangeList"),
+  toolsCard: document.querySelector("#toolsCard"),
+  toolsList: document.querySelector("#toolsList"),
   casePanel: document.querySelector("#casePanel"),
   testsPanel: document.querySelector("#testsPanel"),
   grid: document.querySelector("#grid"),
@@ -47,6 +49,22 @@ let testResults = [];
 let failingCaseIndex = null;
 let pyodideReadyPromise = null;
 let pyodideRuntime = null;
+
+const TOOL_HINTS = {
+  "go()": "сделать один шаг вперед",
+  "go(n)": "сделать n шагов вперед",
+  "turn_left()": "повернуть налево",
+  "turn_right()": "повернуть направо",
+  "at_goal()": "True, если робот стоит на звезде",
+  "front_is_clear()": "True, если впереди нет стены",
+  "right_is_clear()": "True, если справа нет стены",
+  "left_is_clear()": "True, если слева нет стены",
+  "on_item()": "True, если на клетке лежит предмет",
+  "pick()": "поднять предмет с текущей клетки",
+  "read_number()": "прочитать следующее число из ввода",
+  "say(value)": "вывести value в панель вывода",
+  "print(value)": "вывести value в панель вывода"
+};
 
 const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.6/full/";
 const PYTHON_ENGINE_SOURCE = `
@@ -1186,11 +1204,15 @@ function renderState(state) {
 }
 
 function renderContractPanel() {
-  const hasContract = (currentLevel.staysSame && currentLevel.staysSame.length) || (currentLevel.canChange && currentLevel.canChange.length);
+  const tools = currentLevel.tools || [];
+  const hasContract = (currentLevel.staysSame && currentLevel.staysSame.length)
+    || (currentLevel.canChange && currentLevel.canChange.length)
+    || tools.length;
   els.contractPanel.hidden = !hasContract;
   if (!hasContract) return;
   els.staysSameList.innerHTML = "";
   els.canChangeList.innerHTML = "";
+  els.toolsList.innerHTML = "";
   for (const item of currentLevel.staysSame || []) {
     const li = document.createElement("li");
     li.textContent = item;
@@ -1200,6 +1222,16 @@ function renderContractPanel() {
     const li = document.createElement("li");
     li.textContent = item;
     els.canChangeList.appendChild(li);
+  }
+  els.toolsCard.hidden = tools.length === 0;
+  for (const tool of tools) {
+    const li = document.createElement("li");
+    const code = document.createElement("code");
+    code.textContent = tool;
+    li.appendChild(code);
+    const hint = TOOL_HINTS[tool];
+    if (hint) li.append(` - ${hint}`);
+    els.toolsList.appendChild(li);
   }
 }
 

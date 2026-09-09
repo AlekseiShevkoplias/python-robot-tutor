@@ -203,7 +203,7 @@ button:disabled {
 
 .contract-panel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -230,6 +230,13 @@ button:disabled {
   color: #415166;
   font-size: 13px;
   line-height: 1.35;
+}
+
+.contract-panel code {
+  color: #172033;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .code-preview {

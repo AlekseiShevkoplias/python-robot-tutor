@@ -77,7 +77,7 @@ window.ROBOT_LEVELS = [
     id: "gen_corridor_01",
     title: "G1. Звезда где-то впереди",
     concept: "Правило для разных входов",
-    description: "Одна карта - это только пример. Настоящее решение должно работать для любого допустимого коридора.",
+    description: "Одна карта - это только пример. Проверка at_goal() помогает понять, стоим ли мы уже на звезде.",
     goalText: "Дойди до звезды. Длина коридора может меняться от 0 до 8 клеток.",
     staysSame: [
       "робот смотрит вдоль коридора",
@@ -89,6 +89,7 @@ window.ROBOT_LEVELS = [
       "звезда может быть прямо на стартовой клетке",
       "коридор может быть коротким или длинным"
     ],
+    tools: ["go()", "at_goal()"],
     world: corridorWorld(3),
     starterCode: "# Это проходит первый пример, но не всю задачу.\ngo(3)\n\n# Подумай: что делать, если расстояние неизвестно?",
     checks: { reachGoal: true },
@@ -117,6 +118,7 @@ window.ROBOT_LEVELS = [
       "позиции предметов",
       "предмет может лежать на последней клетке"
     ],
+    tools: ["go()", "at_goal()", "on_item()", "pick()", "say(value)"],
     world: corridorWorld(4, [1, 3]),
     starterCode: "items = 0\n\nwhile not at_goal():\n    if on_item():\n        pick()\n        items = items + 1\n    go()\n\n# А что если предмет лежит на звезде?\nsay(items)",
     checks: { reachGoal: true },
@@ -144,6 +146,7 @@ window.ROBOT_LEVELS = [
       "длина второго прямого участка",
       "место поворота"
     ],
+    tools: ["go()", "turn_right()", "front_is_clear()", "at_goal()"],
     world: oneTurnWorld(3, 2),
     starterCode: "# Это решение подобрано под один пример.\ngo(3)\nturn_right()\ngo(2)\n\n# Как сделать правило для любого места поворота?",
     checks: { reachGoal: true },
@@ -171,6 +174,7 @@ window.ROBOT_LEVELS = [
       "длина коридора",
       "число может быть 0"
     ],
+    tools: ["read_number()", "go(n)"],
     world: corridorWorld(2),
     inputQueue: [2],
     starterCode: "# Это проходит только пример input = 2.\ngo(2)\n\n# Вместо этого прочитай число через read_number().",
@@ -199,6 +203,7 @@ window.ROBOT_LEVELS = [
       "длина прямых участков",
       "поворот может быть направо или налево"
     ],
+    tools: ["go()", "turn_left()", "turn_right()", "front_is_clear()", "right_is_clear()", "left_is_clear()", "at_goal()"],
     world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }]),
     starterCode: "# Это маршрут для первого примера, а не алгоритм.\ngo(3)\nturn_right()\ngo(2)\nturn_left()\ngo(2)\n\n# Попробуй использовать front_is_clear(), right_is_clear(), left_is_clear().",
     checks: { reachGoal: true },
@@ -226,6 +231,7 @@ window.ROBOT_LEVELS = [
       "количество предметов",
       "предмет может быть на старте или на финише"
     ],
+    tools: ["go()", "turn_left()", "turn_right()", "front_is_clear()", "right_is_clear()", "left_is_clear()", "at_goal()", "on_item()", "pick()", "say(value)"],
     world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }], [1, 5]),
     starterCode: "items = 0\n\nwhile not at_goal():\n    if front_is_clear():\n        go()\n    elif right_is_clear():\n        turn_right()\n    else:\n        turn_left()\n\n# Путь пройден. Но где сбор предметов?\nsay(items)",
     checks: { reachGoal: true },
@@ -253,6 +259,7 @@ window.ROBOT_LEVELS = [
       "расстояние до звезды",
       "n может быть 0"
     ],
+    tools: ["read_number()", "go(n)"],
     world: corridorWorld(4),
     inputQueue: [2],
     starterCode: "# Это проходит только input = 2.\ngo(4)\n\n# Сделай правило: прочитать n и пройти 2 * n.",
@@ -281,6 +288,7 @@ window.ROBOT_LEVELS = [
       "какие это числа",
       "0 может быть первым"
     ],
+    tools: ["read_number()", "print(value)"],
     world: corridorWorld(0),
     inputQueue: [2, 3, 0],
     starterCode: "# Это ответ для первого примера, но не программа для правила.\nprint(5)\n\n# Нужно читать числа, пока не встретится 0.",
