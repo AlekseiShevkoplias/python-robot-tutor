@@ -91,7 +91,7 @@ window.ROBOT_LEVELS = [
     ],
     tools: ["go()", "at_goal()"],
     world: corridorWorld(3),
-    starterCode: "# Это проходит первый пример, но не всю задачу.\ngo(3)\n\n# Подумай: что делать, если расстояние неизвестно?",
+    starterCode: "# Нужно правило, а не число шагов для одного примера.\n# Подумай: какая проверка говорит, что пора остановиться?\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "distance = 3", corridorWorld(3)),
@@ -120,7 +120,7 @@ window.ROBOT_LEVELS = [
     ],
     tools: ["go()", "at_goal()", "on_item()", "pick()", "say(value)"],
     world: corridorWorld(4, [1, 3]),
-    starterCode: "items = 0\n\nwhile not at_goal():\n    if on_item():\n        pick()\n        items = items + 1\n    go()\n\n# А что если предмет лежит на звезде?\nsay(items)",
+    starterCode: "items = 0\n\n# Проверь каждую клетку пути.\n# Если на клетке есть предмет, подними его и обнови счетчик.\n# В конце выведи items.\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "two items", corridorWorld(4, [1, 3]), { checks: { minItems: 2, expectedOutput: "2" } }),
@@ -148,7 +148,7 @@ window.ROBOT_LEVELS = [
     ],
     tools: ["go()", "turn_right()", "front_is_clear()", "at_goal()"],
     world: oneTurnWorld(3, 2),
-    starterCode: "# Это решение подобрано под один пример.\ngo(3)\nturn_right()\ngo(2)\n\n# Как сделать правило для любого места поворота?",
+    starterCode: "# Место поворота неизвестно.\n# Подумай: как понять, что дальше прямо идти уже нельзя?\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "3 then 2", oneTurnWorld(3, 2)),
@@ -177,7 +177,7 @@ window.ROBOT_LEVELS = [
     tools: ["read_number()", "go(n)"],
     world: corridorWorld(2),
     inputQueue: [2],
-    starterCode: "# Это проходит только пример input = 2.\ngo(2)\n\n# Вместо этого прочитай число через read_number().",
+    starterCode: "# Во входе лежит число шагов.\n# Сначала прочитай его, потом используй в движении.\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "input = 2", corridorWorld(2), { inputQueue: [2] }),
@@ -205,7 +205,7 @@ window.ROBOT_LEVELS = [
     ],
     tools: ["go()", "turn_left()", "turn_right()", "front_is_clear()", "right_is_clear()", "left_is_clear()", "at_goal()"],
     world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }]),
-    starterCode: "# Это маршрут для первого примера, а не алгоритм.\ngo(3)\nturn_right()\ngo(2)\nturn_left()\ngo(2)\n\n# Попробуй использовать front_is_clear(), right_is_clear(), left_is_clear().",
+    starterCode: "# Маршрут меняется, поэтому нужны проверки.\n# На каждом шаге решай: идти вперед, повернуть направо или повернуть налево.\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "right then left", pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }])),
@@ -233,7 +233,7 @@ window.ROBOT_LEVELS = [
     ],
     tools: ["go()", "turn_left()", "turn_right()", "front_is_clear()", "right_is_clear()", "left_is_clear()", "at_goal()", "on_item()", "pick()", "say(value)"],
     world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }], [1, 5]),
-    starterCode: "items = 0\n\nwhile not at_goal():\n    if front_is_clear():\n        go()\n    elif right_is_clear():\n        turn_right()\n    else:\n        turn_left()\n\n# Путь пройден. Но где сбор предметов?\nsay(items)",
+    starterCode: "items = 0\n\n# Тут две задачи сразу:\n# 1. пройти по неизвестному пути;\n# 2. не пропустить предметы на клетках.\n# В конце выведи items.\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "two items on path", pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }], [1, 5]), { checks: { minItems: 2, expectedOutput: "2" } }),
@@ -262,7 +262,7 @@ window.ROBOT_LEVELS = [
     tools: ["read_number()", "go(n)"],
     world: corridorWorld(4),
     inputQueue: [2],
-    starterCode: "# Это проходит только input = 2.\ngo(4)\n\n# Сделай правило: прочитать n и пройти 2 * n.",
+    starterCode: "# Во входе лежит n.\n# Нужно пройти не n, а в два раза больше.\npass",
     checks: { reachGoal: true },
     cases: [
       caseDef("example", "n = 2", corridorWorld(4), { inputQueue: [2] }),
@@ -291,7 +291,7 @@ window.ROBOT_LEVELS = [
     tools: ["read_number()", "print(value)"],
     world: corridorWorld(0),
     inputQueue: [2, 3, 0],
-    starterCode: "# Это ответ для первого примера, но не программа для правила.\nprint(5)\n\n# Нужно читать числа, пока не встретится 0.",
+    starterCode: "# Чисел может быть разное количество.\n# Ноль означает: больше складывать не надо.\npass",
     checks: { expectedOutput: "5" },
     cases: [
       caseDef("example", "2, 3, 0", corridorWorld(0), { inputQueue: [2, 3, 0], checks: { expectedOutput: "5" } }),
