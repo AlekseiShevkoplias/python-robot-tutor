@@ -20,6 +20,54 @@ function oneTurnWorld(firstSegment, secondSegment) {
   };
 }
 
+function pathWorld(segments, itemPathIndexes = []) {
+  const directionDeltas = {
+    N: { x: 0, y: -1 },
+    E: { x: 1, y: 0 },
+    S: { x: 0, y: 1 },
+    W: { x: -1, y: 0 }
+  };
+  const path = [{ x: 0, y: 0 }];
+  let x = 0;
+  let y = 0;
+
+  for (const segment of segments) {
+    const delta = directionDeltas[segment.dir];
+    for (let step = 0; step < segment.steps; step += 1) {
+      x += delta.x;
+      y += delta.y;
+      path.push({ x, y });
+    }
+  }
+
+  const minX = Math.min(...path.map((cell) => cell.x));
+  const minY = Math.min(...path.map((cell) => cell.y));
+  const shifted = path.map((cell) => ({ x: cell.x - minX, y: cell.y - minY }));
+  const maxX = Math.max(...shifted.map((cell) => cell.x));
+  const maxY = Math.max(...shifted.map((cell) => cell.y));
+  const open = new Set(shifted.map((cell) => `${cell.x},${cell.y}`));
+  const walls = [];
+
+  for (let wallY = 0; wallY <= maxY; wallY += 1) {
+    for (let wallX = 0; wallX <= maxX; wallX += 1) {
+      if (!open.has(`${wallX},${wallY}`)) walls.push({ x: wallX, y: wallY });
+    }
+  }
+
+  return {
+    width: maxX + 1,
+    height: maxY + 1,
+    start: { x: shifted[0].x, y: shifted[0].y, dir: segments[0].dir },
+    walls,
+    goal: shifted[shifted.length - 1],
+    items: itemPathIndexes.map((index, itemIndex) => ({
+      x: shifted[index].x,
+      y: shifted[index].y,
+      name: `предмет ${itemIndex + 1}`
+    }))
+  };
+}
+
 function caseDef(kind, label, world, extra = {}) {
   return { kind, label, world, ...extra };
 }
@@ -133,6 +181,116 @@ window.ROBOT_LEVELS = [
       caseDef("edge", "input = 1", corridorWorld(1), { inputQueue: [1] }),
       caseDef("generated", "input = 5", corridorWorld(5), { inputQueue: [5] }),
       caseDef("generated", "input = 7", corridorWorld(7), { inputQueue: [7] })
+    ]
+  },
+  {
+    id: "gen_path_01",
+    title: "G5. Извилистый путь без развилок",
+    concept: "Алгоритм вместо маршрута",
+    description: "Путь может поворачивать в разных местах. Команды, подобранные под одну карту, больше не спасают.",
+    goalText: "Дойди до звезды на любом пути без развилок.",
+    staysSame: [
+      "есть ровно один открытый путь",
+      "развилок нет",
+      "звезда всегда в конце пути"
+    ],
+    canChange: [
+      "количество поворотов",
+      "длина прямых участков",
+      "поворот может быть направо или налево"
+    ],
+    world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }]),
+    starterCode: "# Это маршрут для первого примера, а не алгоритм.\ngo(3)\nturn_right()\ngo(2)\nturn_left()\ngo(2)\n\n# Попробуй использовать front_is_clear(), right_is_clear(), left_is_clear().",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "right then left", pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }])),
+      caseDef("edge", "turn immediately", pathWorld([{ dir: "E", steps: 1 }, { dir: "S", steps: 3 }, { dir: "E", steps: 1 }])),
+      caseDef("edge", "mostly straight", pathWorld([{ dir: "E", steps: 5 }, { dir: "S", steps: 1 }])),
+      caseDef("generated", "three turns", pathWorld([{ dir: "E", steps: 2 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }, { dir: "S", steps: 2 }])),
+      caseDef("generated", "long middle", pathWorld([{ dir: "E", steps: 2 }, { dir: "S", steps: 4 }, { dir: "E", steps: 3 }]))
+    ]
+  },
+  {
+    id: "gen_path_items_01",
+    title: "G6. Собери на неизвестном пути",
+    concept: "Композиция условий",
+    description: "Теперь нужно одновременно двигаться по неизвестному пути и не пропускать предметы.",
+    goalText: "Собери все предметы на пути, дойди до звезды и выведи их количество.",
+    staysSame: [
+      "путь один и без развилок",
+      "все предметы лежат на пути",
+      "звезда в конце"
+    ],
+    canChange: [
+      "форма пути",
+      "количество предметов",
+      "предмет может быть на старте или на финише"
+    ],
+    world: pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }], [1, 5]),
+    starterCode: "items = 0\n\nwhile not at_goal():\n    if front_is_clear():\n        go()\n    elif right_is_clear():\n        turn_right()\n    else:\n        turn_left()\n\n# Путь пройден. Но где сбор предметов?\nsay(items)",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "two items on path", pathWorld([{ dir: "E", steps: 3 }, { dir: "S", steps: 2 }, { dir: "E", steps: 2 }], [1, 5]), { checks: { minItems: 2, expectedOutput: "2" } }),
+      caseDef("edge", "item at start", pathWorld([{ dir: "E", steps: 2 }, { dir: "S", steps: 2 }], [0]), { checks: { minItems: 1, expectedOutput: "1" } }),
+      caseDef("edge", "item at finish", pathWorld([{ dir: "E", steps: 2 }, { dir: "S", steps: 2 }], [4]), { checks: { minItems: 1, expectedOutput: "1" } }),
+      caseDef("generated", "three items", pathWorld([{ dir: "E", steps: 2 }, { dir: "S", steps: 3 }, { dir: "E", steps: 2 }], [1, 3, 7]), { checks: { minItems: 3, expectedOutput: "3" } }),
+      caseDef("generated", "no items", pathWorld([{ dir: "E", steps: 4 }, { dir: "S", steps: 1 }], []), { checks: { minItems: 0, expectedOutput: "0" } })
+    ]
+  },
+  {
+    id: "gen_double_01",
+    title: "G7. Пройди в два раза больше",
+    concept: "Input → вычисление → действие",
+    description: "Число из входа надо не просто использовать, а преобразовать. Это уже маленькое вычисление.",
+    goalText: "Прочитай число n и пройди 2 * n клеток.",
+    staysSame: [
+      "звезда стоит на расстоянии 2 * n",
+      "робот смотрит на звезду",
+      "коридор свободный"
+    ],
+    canChange: [
+      "число n",
+      "расстояние до звезды",
+      "n может быть 0"
+    ],
+    world: corridorWorld(4),
+    inputQueue: [2],
+    starterCode: "# Это проходит только input = 2.\ngo(4)\n\n# Сделай правило: прочитать n и пройти 2 * n.",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "n = 2", corridorWorld(4), { inputQueue: [2] }),
+      caseDef("edge", "n = 0", corridorWorld(0), { inputQueue: [0] }),
+      caseDef("edge", "n = 1", corridorWorld(2), { inputQueue: [1] }),
+      caseDef("generated", "n = 4", corridorWorld(8), { inputQueue: [4] }),
+      caseDef("generated", "n = 6", corridorWorld(12), { inputQueue: [6] })
+    ]
+  },
+  {
+    id: "gen_sum_until_zero_01",
+    title: "G8. Сумма до нуля",
+    concept: "Цикл с неизвестным числом входов",
+    description: "Программа не знает заранее, сколько чисел придет. Ноль означает стоп.",
+    goalText: "Читай числа, пока не встретишь 0, и напечатай сумму предыдущих чисел.",
+    staysSame: [
+      "в конце входа всегда есть 0",
+      "нужно напечатать одну сумму",
+      "0 не добавляется к сумме"
+    ],
+    canChange: [
+      "сколько чисел до нуля",
+      "какие это числа",
+      "0 может быть первым"
+    ],
+    world: corridorWorld(0),
+    inputQueue: [2, 3, 0],
+    starterCode: "# Это ответ для первого примера, но не программа для правила.\nprint(5)\n\n# Нужно читать числа, пока не встретится 0.",
+    checks: { expectedOutput: "5" },
+    cases: [
+      caseDef("example", "2, 3, 0", corridorWorld(0), { inputQueue: [2, 3, 0], checks: { expectedOutput: "5" } }),
+      caseDef("edge", "0 immediately", corridorWorld(0), { inputQueue: [0], checks: { expectedOutput: "0" } }),
+      caseDef("edge", "one number", corridorWorld(0), { inputQueue: [7, 0], checks: { expectedOutput: "7" } }),
+      caseDef("generated", "four numbers", corridorWorld(0), { inputQueue: [1, 4, 2, 3, 0], checks: { expectedOutput: "10" } }),
+      caseDef("generated", "larger numbers", corridorWorld(0), { inputQueue: [10, 20, 5, 0], checks: { expectedOutput: "35" } })
     ]
   },
   {
