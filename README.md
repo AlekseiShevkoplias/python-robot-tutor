@@ -2,6 +2,11 @@
 
 Статический учебный сайт для GitHub Pages. Цель - помочь новичку увидеть, как программа выполняется по шагам: строка кода, действие робота, изменение состояния, переменные и вывод.
 
+## Ссылки
+
+- Сайт: https://alekseishevkoplias.github.io/python-robot-tutor/
+- Репозиторий: https://github.com/AlekseiShevkoplias/python-robot-tutor
+
 ## Что уже есть
 
 - 17 учебных уровней.
@@ -92,4 +97,3 @@ gh api repos/AlekseiShevkoplias/python-robot-tutor/pages -X POST -f source.branc
 ```text
 https://alekseishevkoplias.github.io/python-robot-tutor/
 ```
-
