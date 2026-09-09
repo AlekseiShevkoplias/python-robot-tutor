@@ -558,6 +558,11 @@ function evalRange(source, context, line) {
 }
 
 function executeStatement(text, context, line) {
+  if (text === "pass") {
+    context.record(line, "pass ничего не делает. Это временная заглушка, которую можно заменить кодом.");
+    return;
+  }
+
   const assign = text.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/);
   if (assign) {
     const value = evalExpression(assign[2], context, line);
@@ -832,7 +837,7 @@ function finishRunMessage() {
   const hidden = runHiddenTests(currentLevel, code, currentState);
   if (currentState.error) {
     setBanner(currentState.error.message, "error");
-  } else if (hidden && !hidden.ok) {
+  } else if (hidden && !hidden.ok && hidden.message) {
     setBanner(hidden.message, "error");
   } else if (result.ok) {
     setBanner("Уровень пройден. Теперь попробуй объяснить, почему решение работает.", "ok");
@@ -903,4 +908,3 @@ function init() {
 }
 
 init();
-

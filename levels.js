@@ -6,7 +6,7 @@ window.ROBOT_LEVELS = [
     description: "Робот выполняет команды сверху вниз. Перед запуском предскажи, где он окажется.",
     goalText: "Дойди до звезды.",
     world: { width: 5, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [], goal: { x: 4, y: 2 }, items: [] },
-    starterCode: "go()\ngo()\ngo()",
+    starterCode: "# Робот смотрит на восток.\n# Добавь команды, чтобы дойти до звезды.\ngo()",
     checks: { reachGoal: true }
   },
   {
@@ -16,7 +16,7 @@ window.ROBOT_LEVELS = [
     description: "Одинаковые команды в другом порядке ведут в другое место.",
     goalText: "Пройди угол и остановись на звезде.",
     world: { width: 5, height: 5, start: { x: 1, y: 3, dir: "E" }, walls: [], goal: { x: 3, y: 1 }, items: [] },
-    starterCode: "go()\ngo()\nturn_left()\ngo()\ngo()",
+    starterCode: "# Сначала дойди до угла.\ngo()\ngo()\n# Потом нужен поворот и еще шаги.",
     checks: { reachGoal: true }
   },
   {
@@ -26,7 +26,7 @@ window.ROBOT_LEVELS = [
     description: "Код почти правильный, но порядок строк надо проверить.",
     goalText: "Исправь код так, чтобы робот дошел до звезды.",
     world: { width: 6, height: 5, start: { x: 1, y: 1, dir: "E" }, walls: [], goal: { x: 4, y: 3 }, items: [] },
-    starterCode: "go()\nturn_right()\ngo()\ngo()\ngo()",
+    starterCode: "# Этот маршрут почти правильный, но чего-то не хватает.\ngo()\ngo()\nturn_right()\ngo()",
     checks: { reachGoal: true }
   },
   {
@@ -36,7 +36,7 @@ window.ROBOT_LEVELS = [
     description: "Если робот идет в стену, программа останавливается и показывает понятную ошибку.",
     goalText: "Обойди стену и дойди до звезды.",
     world: { width: 6, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [{ x: 3, y: 2 }], goal: { x: 5, y: 2 }, items: [] },
-    starterCode: "go()\nturn_left()\ngo()\nturn_right()\ngo()\ngo()\nturn_right()\ngo()\nturn_left()\ngo()",
+    starterCode: "# Впереди есть стена.\n# Сначала попробуй запустить этот код и прочитать ошибку.\ngo()\ngo()\n# Потом измени маршрут, чтобы обойти стену.",
     checks: { reachGoal: true }
   },
   {
@@ -46,7 +46,7 @@ window.ROBOT_LEVELS = [
     description: "Цикл повторяет строки с отступом. Посмотри, сколько раз выполнится go().",
     goalText: "Используй цикл, чтобы дойти до звезды.",
     world: { width: 7, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [], goal: { x: 5, y: 2 }, items: [] },
-    starterCode: "for i in range(4):\n    go()",
+    starterCode: "# Замени повторение циклом for.\ngo()\ngo()\n# Нужно дойти до звезды.",
     checks: { reachGoal: true, mustUse: ["for"] }
   },
   {
@@ -56,8 +56,8 @@ window.ROBOT_LEVELS = [
     description: "В цикле может быть несколько строк. Отступ показывает, что повторяется.",
     goalText: "Сделай полный квадрат и вернись на звезду.",
     world: { width: 6, height: 6, start: { x: 2, y: 2, dir: "E" }, walls: [], goal: { x: 2, y: 2 }, items: [] },
-    starterCode: "for i in range(4):\n    go()\n    go()\n    turn_right()",
-    checks: { reachGoal: true, mustUse: ["for"] }
+    starterCode: "# Внутри цикла должны быть шаги и поворот.\nfor i in range(4):\n    pass",
+    checks: { reachGoal: true, mustUse: ["for", "go()", "turn_right"] }
   },
   {
     id: "if_01",
@@ -66,7 +66,7 @@ window.ROBOT_LEVELS = [
     description: "Один и тот же код может вести себя по-разному на разных картах.",
     goalText: "Проверь путь впереди и сделай безопасный шаг.",
     world: { width: 5, height: 5, start: { x: 2, y: 3, dir: "N" }, walls: [], goal: { x: 2, y: 2 }, items: [] },
-    starterCode: "if front_is_clear():\n    go()\nelse:\n    turn_right()",
+    starterCode: "# Если впереди свободно, сделай шаг.\nif front_is_clear():\n    pass\nelse:\n    turn_right()",
     checks: { reachGoal: true, mustUse: ["if"] }
   },
   {
@@ -76,7 +76,7 @@ window.ROBOT_LEVELS = [
     description: "Датчики мира возвращают True или False. По ним программа выбирает действие.",
     goalText: "Обойди стену и дойди до звезды.",
     world: { width: 6, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [{ x: 2, y: 2 }], goal: { x: 4, y: 1 }, items: [] },
-    starterCode: "if front_is_clear():\n    go()\nelse:\n    turn_left()\n    go()\n    turn_right()\n    go()\n    go()",
+    starterCode: "# Впереди стена. Используй if/else, чтобы выбрать путь.\nif front_is_clear():\n    go()\nelse:\n    turn_left()\n    # продолжи маршрут",
     checks: { reachGoal: true, mustUse: ["if"] }
   },
   {
@@ -86,7 +86,7 @@ window.ROBOT_LEVELS = [
     description: "Функция создает новую команду из уже известных команд.",
     goalText: "Создай turn_around() и используй ее.",
     world: { width: 5, height: 5, start: { x: 2, y: 2, dir: "E" }, walls: [], goal: { x: 1, y: 2 }, items: [] },
-    starterCode: "def turn_around():\n    turn_right()\n    turn_right()\n\nturn_around()\ngo()",
+    starterCode: "# Создай функцию, которая разворачивает робота.\ndef turn_around():\n    pass\n\nturn_around()\n# После разворота нужен шаг.",
     checks: { reachGoal: true, mustUse: ["def"] }
   },
   {
@@ -96,7 +96,7 @@ window.ROBOT_LEVELS = [
     description: "Если кусок маршрута повторяется, его удобно назвать.",
     goalText: "Используй функцию step_turn(), чтобы дойти до звезды.",
     world: { width: 6, height: 6, start: { x: 1, y: 4, dir: "E" }, walls: [], goal: { x: 3, y: 2 }, items: [] },
-    starterCode: "def step_turn():\n    go()\n    turn_left()\n\nstep_turn()\nstep_turn()\ngo()",
+    starterCode: "# Заполни функцию повторяемым кусочком маршрута.\ndef step_turn():\n    pass\n\nstep_turn()\nstep_turn()\n# Закончи маршрут.",
     checks: { reachGoal: true, mustUse: ["def"] }
   },
   {
@@ -106,7 +106,7 @@ window.ROBOT_LEVELS = [
     description: "Переменная - имя для значения. Следи за панелью переменных.",
     goalText: "Сохрани число шагов в переменную и дойди до цели.",
     world: { width: 7, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [], goal: { x: 5, y: 2 }, items: [] },
-    starterCode: "steps = 4\ngo(steps)",
+    starterCode: "# Запиши нужное число шагов в переменную.\nsteps = 1\ngo(steps)",
     checks: { reachGoal: true, mustUse: ["="] }
   },
   {
@@ -116,7 +116,7 @@ window.ROBOT_LEVELS = [
     description: "Строка x = x + 1 берет старое значение и записывает новое.",
     goalText: "Дойди до звезды и выведи количество шагов.",
     world: { width: 6, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [], goal: { x: 4, y: 2 }, items: [] },
-    starterCode: "steps = 0\nfor i in range(3):\n    go()\n    steps = steps + 1\nsay(steps)",
+    starterCode: "steps = 0\n\nfor i in range(3):\n    go()\n    # увеличь счетчик\n\n# выведи количество шагов",
     checks: { reachGoal: true, expectedOutput: "3", mustUse: ["for"] }
   },
   {
@@ -126,7 +126,7 @@ window.ROBOT_LEVELS = [
     description: "Предмет исчезает с клетки и появляется в рюкзаке робота.",
     goalText: "Подними предмет и дойди до звезды.",
     world: { width: 6, height: 5, start: { x: 1, y: 2, dir: "E" }, walls: [], goal: { x: 4, y: 2 }, items: [{ x: 2, y: 2, name: "кристалл" }] },
-    starterCode: "go()\npick()\ngo()\ngo()",
+    starterCode: "# Сначала дойди до предмета.\ngo()\n# Подними предмет.\n# Потом дойди до звезды.",
     checks: { reachGoal: true, minItems: 1 }
   },
   {
@@ -137,7 +137,7 @@ window.ROBOT_LEVELS = [
     goalText: "Прочитай число и напечатай число плюс 1.",
     world: { width: 1, height: 1, start: { x: 0, y: 0, dir: "N" }, walls: [], goal: null, items: [] },
     inputQueue: [5],
-    starterCode: "x = read_number()\nprint(x + 1)",
+    starterCode: "# Прочитай число из панели ввода.\nx = read_number()\n# Напечатай число плюс 1.",
     checks: { expectedOutput: "6", tests: [{ inputQueue: [10], expectedOutput: "11" }, { inputQueue: [2], expectedOutput: "3" }] }
   },
   {
@@ -148,7 +148,7 @@ window.ROBOT_LEVELS = [
     goalText: "Прочитай два числа и напечатай их сумму.",
     world: { width: 1, height: 1, start: { x: 0, y: 0, dir: "N" }, walls: [], goal: null, items: [] },
     inputQueue: [7, 4],
-    starterCode: "a = read_number()\nb = read_number()\nprint(a + b)",
+    starterCode: "# read_number() каждый раз берет следующее число.\na = read_number()\nb = read_number()\n# Напечатай сумму.",
     checks: { expectedOutput: "11", tests: [{ inputQueue: [3, 8], expectedOutput: "11" }, { inputQueue: [20, 1], expectedOutput: "21" }] }
   },
   {
@@ -159,7 +159,7 @@ window.ROBOT_LEVELS = [
     goalText: "Прочитай два числа и напечатай большее.",
     world: { width: 1, height: 1, start: { x: 0, y: 0, dir: "N" }, walls: [], goal: null, items: [] },
     inputQueue: [8, 3],
-    starterCode: "a = read_number()\nb = read_number()\nif a > b:\n    print(a)\nelse:\n    print(b)",
+    starterCode: "a = read_number()\nb = read_number()\n\nif a > b:\n    pass\nelse:\n    pass",
     checks: { expectedOutput: "8", tests: [{ inputQueue: [1, 9], expectedOutput: "9" }, { inputQueue: [12, 4], expectedOutput: "12" }] }
   },
   {
@@ -176,8 +176,7 @@ window.ROBOT_LEVELS = [
       goal: { x: 5, y: 2 },
       items: [{ x: 2, y: 4, name: "ключ" }, { x: 5, y: 3, name: "карта" }]
     },
-    starterCode: "items = 0\n\ngo()\npick()\nitems = items + 1\nturn_left()\ngo()\ngo()\nturn_right()\ngo()\ngo()\nturn_right()\ngo()\npick()\nitems = items + 1\nturn_left()\ngo()\nsay(items)",
+    starterCode: "items = 0\n\n# Собери первый предмет.\ngo()\n\n# Обойди стены, собери второй предмет и дойди до звезды.\n\n# В конце выведи количество предметов.\nsay(items)",
     checks: { reachGoal: true, minItems: 2, expectedOutput: "2" }
   }
 ];
-
