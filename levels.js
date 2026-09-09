@@ -1,4 +1,140 @@
+function corridorWorld(length, items = []) {
+  return {
+    width: Math.max(length + 1, 1),
+    height: 1,
+    start: { x: 0, y: 0, dir: "E" },
+    walls: [],
+    goal: { x: length, y: 0 },
+    items: items.map((x, index) => ({ x, y: 0, name: `предмет ${index + 1}` }))
+  };
+}
+
+function oneTurnWorld(firstSegment, secondSegment) {
+  return {
+    width: firstSegment + 1,
+    height: secondSegment + 1,
+    start: { x: 0, y: 0, dir: "E" },
+    walls: [],
+    goal: { x: firstSegment, y: secondSegment },
+    items: []
+  };
+}
+
+function caseDef(kind, label, world, extra = {}) {
+  return { kind, label, world, ...extra };
+}
+
 window.ROBOT_LEVELS = [
+  {
+    id: "gen_corridor_01",
+    title: "G1. Звезда где-то впереди",
+    concept: "Правило для разных входов",
+    description: "Одна карта - это только пример. Настоящее решение должно работать для любого допустимого коридора.",
+    goalText: "Дойди до звезды. Длина коридора может меняться от 0 до 8 клеток.",
+    staysSame: [
+      "робот смотрит вдоль коридора",
+      "звезда находится впереди",
+      "между роботом и звездой нет стен"
+    ],
+    canChange: [
+      "расстояние до звезды",
+      "звезда может быть прямо на стартовой клетке",
+      "коридор может быть коротким или длинным"
+    ],
+    world: corridorWorld(3),
+    starterCode: "# Это проходит первый пример, но не всю задачу.\ngo(3)\n\n# Подумай: что делать, если расстояние неизвестно?",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "distance = 3", corridorWorld(3)),
+      caseDef("edge", "goal at start", corridorWorld(0)),
+      caseDef("edge", "distance = 1", corridorWorld(1)),
+      caseDef("edge", "long corridor", corridorWorld(8)),
+      caseDef("generated", "distance = 5", corridorWorld(5)),
+      caseDef("generated", "distance = 2", corridorWorld(2))
+    ]
+  },
+  {
+    id: "gen_items_01",
+    title: "G2. Предметы могут быть где угодно",
+    concept: "Условия + edge cases",
+    description: "Код должен собирать все предметы в коридоре, даже если предмет лежит на старте или на финише.",
+    goalText: "Собери все предметы и дойди до звезды.",
+    staysSame: [
+      "мир остается прямым коридором",
+      "звезда всегда в конце",
+      "все предметы лежат на пути"
+    ],
+    canChange: [
+      "количество предметов",
+      "позиции предметов",
+      "предмет может лежать на последней клетке"
+    ],
+    world: corridorWorld(4, [1, 3]),
+    starterCode: "items = 0\n\nwhile not at_goal():\n    if on_item():\n        pick()\n        items = items + 1\n    go()\n\n# А что если предмет лежит на звезде?\nsay(items)",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "two items", corridorWorld(4, [1, 3]), { checks: { minItems: 2, expectedOutput: "2" } }),
+      caseDef("edge", "no items", corridorWorld(3, []), { checks: { minItems: 0, expectedOutput: "0" } }),
+      caseDef("edge", "item at start", corridorWorld(3, [0]), { checks: { minItems: 1, expectedOutput: "1" } }),
+      caseDef("edge", "item at finish", corridorWorld(3, [3]), { checks: { minItems: 1, expectedOutput: "1" } }),
+      caseDef("generated", "many items", corridorWorld(5, [1, 2, 4]), { checks: { minItems: 3, expectedOutput: "3" } })
+    ]
+  },
+  {
+    id: "gen_turn_01",
+    title: "G3. Поворот в неизвестном месте",
+    concept: "Структура input меняется",
+    description: "Ты знаешь контракт: путь идет прямо, потом один раз поворачивает направо. Но место поворота неизвестно.",
+    goalText: "Дойди до звезды на любом пути с одним правым поворотом.",
+    staysSame: [
+      "путь без развилок",
+      "ровно один правый поворот",
+      "звезда в конце пути"
+    ],
+    canChange: [
+      "длина первого прямого участка",
+      "длина второго прямого участка",
+      "место поворота"
+    ],
+    world: oneTurnWorld(3, 2),
+    starterCode: "# Это решение подобрано под один пример.\ngo(3)\nturn_right()\ngo(2)\n\n# Как сделать правило для любого места поворота?",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "3 then 2", oneTurnWorld(3, 2)),
+      caseDef("edge", "short first segment", oneTurnWorld(1, 3)),
+      caseDef("edge", "short second segment", oneTurnWorld(4, 1)),
+      caseDef("generated", "5 then 3", oneTurnWorld(5, 3)),
+      caseDef("generated", "2 then 4", oneTurnWorld(2, 4))
+    ]
+  },
+  {
+    id: "gen_number_01",
+    title: "G4. Число управляет движением",
+    concept: "Input как данные",
+    description: "Теперь меняется не только мир: число во входе тоже часть задачи. Код должен читать число, а не угадывать его.",
+    goalText: "Прочитай число и пройди ровно столько клеток.",
+    staysSame: [
+      "звезда находится на расстоянии, равном входному числу",
+      "робот смотрит на звезду",
+      "между ними нет стен"
+    ],
+    canChange: [
+      "число во входе",
+      "длина коридора",
+      "число может быть 0"
+    ],
+    world: corridorWorld(2),
+    inputQueue: [2],
+    starterCode: "# Это проходит только пример input = 2.\ngo(2)\n\n# Вместо этого прочитай число через read_number().",
+    checks: { reachGoal: true },
+    cases: [
+      caseDef("example", "input = 2", corridorWorld(2), { inputQueue: [2] }),
+      caseDef("edge", "input = 0", corridorWorld(0), { inputQueue: [0] }),
+      caseDef("edge", "input = 1", corridorWorld(1), { inputQueue: [1] }),
+      caseDef("generated", "input = 5", corridorWorld(5), { inputQueue: [5] }),
+      caseDef("generated", "input = 7", corridorWorld(7), { inputQueue: [7] })
+    ]
+  },
   {
     id: "seq_01",
     title: "1. Дойти до звезды",

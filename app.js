@@ -20,6 +20,15 @@ const els = {
   stepButton: document.querySelector("#stepButton"),
   resetButton: document.querySelector("#resetButton"),
   starterButton: document.querySelector("#starterButton"),
+  runAllButton: document.querySelector("#runAllButton"),
+  prevCaseButton: document.querySelector("#prevCaseButton"),
+  nextCaseButton: document.querySelector("#nextCaseButton"),
+  replayFailButton: document.querySelector("#replayFailButton"),
+  contractPanel: document.querySelector("#contractPanel"),
+  staysSameList: document.querySelector("#staysSameList"),
+  canChangeList: document.querySelector("#canChangeList"),
+  casePanel: document.querySelector("#casePanel"),
+  testsPanel: document.querySelector("#testsPanel"),
   grid: document.querySelector("#grid"),
   statusBanner: document.querySelector("#statusBanner"),
   robotState: document.querySelector("#robotState"),
@@ -33,6 +42,9 @@ let currentLevel = window.ROBOT_LEVELS[0];
 let currentState = null;
 let lastRun = null;
 let playbackIndex = -1;
+let currentCaseIndex = 0;
+let testResults = [];
+let failingCaseIndex = null;
 let pyodideReadyPromise = null;
 let pyodideRuntime = null;
 
@@ -350,6 +362,36 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function getCases(level) {
+  if (Array.isArray(level.cases) && level.cases.length > 0) return level.cases;
+  return [{
+    kind: "single",
+    label: "Текущий мир",
+    world: level.world,
+    inputQueue: level.inputQueue,
+    checks: level.checks
+  }];
+}
+
+function materializeLevel(level, caseIndex = currentCaseIndex) {
+  const cases = getCases(level);
+  const selectedCase = cases[Math.max(0, Math.min(caseIndex, cases.length - 1))];
+  const checks = { ...(level.checks || {}), ...(selectedCase.checks || {}) };
+  return {
+    ...level,
+    title: selectedCase.label ? `${level.title} · ${selectedCase.label}` : level.title,
+    world: clone(selectedCase.world || level.world),
+    inputQueue: selectedCase.inputQueue !== undefined ? [...selectedCase.inputQueue] : [...(level.inputQueue || [])],
+    checks,
+    activeCase: selectedCase,
+    activeCaseIndex: caseIndex
+  };
+}
+
+function getActiveLevel() {
+  return materializeLevel(currentLevel, currentCaseIndex);
+}
+
 function createInitialState(level, inputQueueOverride) {
   const inputQueue = inputQueueOverride ? [...inputQueueOverride] : [...(level.inputQueue || [])];
   return {
@@ -372,6 +414,10 @@ function createInitialState(level, inputQueueOverride) {
 function setExecutionControlsDisabled(disabled) {
   els.runButton.disabled = disabled;
   els.stepButton.disabled = disabled;
+  els.runAllButton.disabled = disabled;
+  els.prevCaseButton.disabled = disabled;
+  els.nextCaseButton.disabled = disabled;
+  els.replayFailButton.disabled = disabled || failingCaseIndex === null;
 }
 
 async function initPyodideEngine() {
@@ -1087,7 +1133,8 @@ function renderAll(state = currentState) {
 }
 
 function renderGrid(state) {
-  const world = currentLevel.world;
+  const activeLevel = getActiveLevel();
+  const world = activeLevel.world;
   els.grid.style.gridTemplateColumns = `repeat(${world.width}, 1fr)`;
   els.grid.style.gridTemplateRows = `repeat(${world.height}, 1fr)`;
   els.grid.innerHTML = "";
@@ -1114,7 +1161,8 @@ function renderGrid(state) {
 }
 
 function renderState(state) {
-  const goal = currentLevel.world.goal;
+  const activeLevel = getActiveLevel();
+  const goal = activeLevel.world.goal;
   const inventory = state.robot.inventory.length ? state.robot.inventory.join(", ") : "пусто";
   els.robotState.innerHTML = `
     <dt>Позиция</dt><dd>(${state.robot.x}, ${state.robot.y})</dd>
@@ -1129,9 +1177,71 @@ function renderState(state) {
     : "Пока пусто";
   els.variablesPanel.classList.toggle("empty-note", varNames.length === 0);
 
-  const input = currentLevel.inputQueue || [];
+  const input = activeLevel.inputQueue || [];
   els.inputPanel.textContent = input.length ? input.map((value, index) => `${index + 1}. ${value}`).join("\n") : "В этом уровне ввода нет";
   els.outputPanel.textContent = state.output.join("\n");
+  renderCasePanel();
+  renderContractPanel();
+  renderTestResults();
+}
+
+function renderContractPanel() {
+  const hasContract = (currentLevel.staysSame && currentLevel.staysSame.length) || (currentLevel.canChange && currentLevel.canChange.length);
+  els.contractPanel.hidden = !hasContract;
+  if (!hasContract) return;
+  els.staysSameList.innerHTML = "";
+  els.canChangeList.innerHTML = "";
+  for (const item of currentLevel.staysSame || []) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    els.staysSameList.appendChild(li);
+  }
+  for (const item of currentLevel.canChange || []) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    els.canChangeList.appendChild(li);
+  }
+}
+
+function renderCasePanel() {
+  const cases = getCases(currentLevel);
+  const activeLevel = getActiveLevel();
+  const selected = activeLevel.activeCase;
+  const kind = selected.kind === "edge" ? "edge case" : selected.kind === "generated" ? "generated" : selected.kind === "example" ? "example" : "single";
+  const input = activeLevel.inputQueue && activeLevel.inputQueue.length ? `\ninput: ${activeLevel.inputQueue.join(", ")}` : "";
+  els.casePanel.textContent = `${currentCaseIndex + 1}/${cases.length} · ${kind}\n${selected.label || "Текущий мир"}${input}`;
+  els.casePanel.classList.toggle("empty-note", false);
+  els.prevCaseButton.disabled = cases.length <= 1;
+  els.nextCaseButton.disabled = cases.length <= 1;
+  els.replayFailButton.disabled = failingCaseIndex === null;
+}
+
+function renderTestResults() {
+  if (!testResults.length) {
+    els.testsPanel.textContent = "Пока не запускали";
+    els.testsPanel.className = "tests-panel empty-note";
+    return;
+  }
+  els.testsPanel.className = "tests-panel";
+  els.testsPanel.innerHTML = "";
+  for (const result of testResults) {
+    const row = document.createElement("div");
+    row.className = `test-row ${result.ok ? "pass" : "fail"}`;
+    const mark = document.createElement("div");
+    mark.className = "test-mark";
+    mark.textContent = result.ok ? "✓" : "×";
+    const body = document.createElement("div");
+    const title = document.createElement("div");
+    title.textContent = result.label;
+    const detail = document.createElement("div");
+    detail.className = "test-detail";
+    detail.textContent = result.ok ? "PASS" : result.issue;
+    body.appendChild(title);
+    body.appendChild(detail);
+    row.appendChild(mark);
+    row.appendChild(body);
+    els.testsPanel.appendChild(row);
+  }
 }
 
 function renderCodeLines() {
@@ -1173,12 +1283,13 @@ function setBanner(message, type = "") {
 
 async function prepareRun() {
   const code = els.codeEditor.value;
+  const activeLevel = getActiveLevel();
   setExecutionControlsDisabled(true);
   setBanner("Python выполняет программу...");
-  lastRun = await executeProgram(currentLevel, code);
+  lastRun = await executeProgram(activeLevel, code);
   setExecutionControlsDisabled(false);
   playbackIndex = -1;
-  currentState = createInitialState(currentLevel);
+  currentState = createInitialState(activeLevel);
   renderAll(currentState);
   if (lastRun.state.error) {
     setBanner(lastRun.state.error.message, "error");
@@ -1204,8 +1315,9 @@ async function showEvent(index) {
 
 async function finishRunMessage() {
   const code = els.codeEditor.value;
-  const result = checkSolution(currentLevel, code, currentState);
-  const hidden = await runHiddenTests(currentLevel, code, currentState);
+  const activeLevel = getActiveLevel();
+  const result = checkSolution(activeLevel, code, currentState);
+  const hidden = await runHiddenTests(activeLevel, code, currentState);
   if (currentState.error) {
     setBanner(currentState.error.message, "error");
   } else if (hidden && !hidden.ok && hidden.message) {
@@ -1229,16 +1341,101 @@ async function step() {
   await showEvent(playbackIndex + 1);
 }
 
+function caseKindLabel(kind) {
+  if (kind === "example") return "Example";
+  if (kind === "edge") return "Edge";
+  if (kind === "generated") return "Generated";
+  return "Case";
+}
+
+async function runAllCases() {
+  const code = els.codeEditor.value;
+  const cases = getCases(currentLevel);
+  const hasFamilyCases = Array.isArray(currentLevel.cases) && currentLevel.cases.length > 0;
+  const runs = cases.map((selectedCase, index) => ({
+    index,
+    label: `${caseKindLabel(selectedCase.kind)}: ${selectedCase.label || `case ${index + 1}`}`,
+    level: materializeLevel(currentLevel, index)
+  }));
+
+  if (!hasFamilyCases && currentLevel.checks?.tests?.length) {
+    for (const [index, test] of currentLevel.checks.tests.entries()) {
+      runs.push({
+        index: null,
+        label: `Hidden input ${index + 1}: ${test.inputQueue.join(", ")}`,
+        level: {
+          ...materializeLevel(currentLevel, 0),
+          inputQueue: [...test.inputQueue],
+          checks: { ...(currentLevel.checks || {}), expectedOutput: test.expectedOutput, tests: [] }
+        }
+      });
+    }
+  }
+
+  setExecutionControlsDisabled(true);
+  setBanner(`Проверяю ${runs.length} входов...`);
+  testResults = [];
+  failingCaseIndex = null;
+
+  for (const run of runs) {
+    const result = await executeProgram(run.level, code, { silent: true });
+    const check = checkSolution(run.level, code, result.state);
+    const issue = result.state.error?.message || check.issues[0] || "";
+    const row = {
+      label: run.label,
+      ok: check.ok,
+      issue: issue || "Не прошла проверка.",
+      caseIndex: run.index
+    };
+    testResults.push(row);
+    if (!row.ok && failingCaseIndex === null && run.index !== null) {
+      failingCaseIndex = run.index;
+    }
+  }
+
+  setExecutionControlsDisabled(false);
+  renderAll(currentState);
+  const passed = testResults.filter((result) => result.ok).length;
+  if (passed === testResults.length) {
+    setBanner(`Правило работает на всех входах: ${passed}/${testResults.length}.`, "ok");
+  } else if (failingCaseIndex !== null) {
+    const failing = testResults.find((result) => result.caseIndex === failingCaseIndex && !result.ok);
+    setBanner(`Нашли контрпример: ${failing.label}. Нажми Replay fail и пройди его по шагам.`, "error");
+  } else {
+    setBanner(`Прошло ${passed}/${testResults.length}. Посмотри список проверок справа.`, "error");
+  }
+}
+
+function switchCase(delta) {
+  const cases = getCases(currentLevel);
+  if (cases.length <= 1) return;
+  currentCaseIndex = (currentCaseIndex + delta + cases.length) % cases.length;
+  resetWorld();
+  setBanner(`Открыт вход ${currentCaseIndex + 1}/${cases.length}: ${cases[currentCaseIndex].label}.`);
+}
+
+function replayFailingCase() {
+  if (failingCaseIndex === null) return;
+  currentCaseIndex = failingCaseIndex;
+  resetWorld();
+  const selected = getCases(currentLevel)[currentCaseIndex];
+  setBanner(`Контрпример открыт: ${selected.label}. Нажми Step, чтобы увидеть, где идея ломается.`, "error");
+}
+
 function resetWorld() {
+  const activeLevel = getActiveLevel();
   lastRun = null;
   playbackIndex = -1;
-  currentState = createInitialState(currentLevel);
+  currentState = createInitialState(activeLevel);
   renderAll(currentState);
   setBanner("Мир сброшен. Перед запуском попробуй предсказать результат.");
 }
 
 function loadLevel(level) {
   currentLevel = level;
+  currentCaseIndex = 0;
+  testResults = [];
+  failingCaseIndex = null;
   els.levelConcept.textContent = level.concept;
   els.levelTitle.textContent = level.title;
   els.levelDescription.textContent = level.description;
@@ -1285,6 +1482,16 @@ function init() {
       console.error(error);
     });
   });
+  els.runAllButton.addEventListener("click", () => {
+    runAllCases().catch((error) => {
+      setExecutionControlsDisabled(false);
+      setBanner("Не получилось запустить все проверки. Проверь консоль браузера.", "error");
+      console.error(error);
+    });
+  });
+  els.prevCaseButton.addEventListener("click", () => switchCase(-1));
+  els.nextCaseButton.addEventListener("click", () => switchCase(1));
+  els.replayFailButton.addEventListener("click", replayFailingCase);
   els.resetButton.addEventListener("click", resetWorld);
   els.starterButton.addEventListener("click", restoreStarter);
   loadLevel(currentLevel);

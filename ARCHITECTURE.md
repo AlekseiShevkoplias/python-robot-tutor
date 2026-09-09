@@ -54,3 +54,31 @@ Each level can define checks:
 - `tests` for hidden input/output tests.
 
 For I/O levels, hidden tests catch hardcoded sample answers. For example, if the visible input is `5` and the learner writes `print(6)`, the visible example passes but hidden tests fail with a gentle message.
+
+## Level Families
+
+Newer levels can define `cases`. A case is a concrete input world inside a broader contract:
+
+```js
+{
+  kind: "edge",
+  label: "goal at start",
+  world: corridorWorld(0),
+  inputQueue: [],
+  checks: { reachGoal: true }
+}
+```
+
+The UI materializes `currentLevel + selectedCase` into an active runnable level. `Run` and `Step` use the selected case. `Run all` executes the same student code across all cases and stores the first failing case as a counterexample. `Replay fail` switches the world to that failing case so the learner can step through it.
+
+This makes the teaching model:
+
+```text
+Level = specification + input family + tests
+```
+
+instead of:
+
+```text
+Level = one map
+```

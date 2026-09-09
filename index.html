@@ -21,6 +21,16 @@
           <h2 id="levelTitle"></h2>
           <p id="levelDescription"></p>
           <div id="levelGoal" class="goal-line"></div>
+          <div id="contractPanel" class="contract-panel" hidden>
+            <div>
+              <h3>Не меняется</h3>
+              <ul id="staysSameList"></ul>
+            </div>
+            <div>
+              <h3>Может измениться</h3>
+              <ul id="canChangeList"></ul>
+            </div>
+          </div>
         </div>
 
         <label class="editor-label" for="codeEditor">Код</label>
@@ -31,6 +41,10 @@
           <button id="stepButton" title="Выполнить следующий шаг">↦ Step</button>
           <button id="resetButton" title="Сбросить мир">↺ Reset</button>
           <button id="starterButton" title="Вернуть стартовый код">⟲ Starter</button>
+          <button id="runAllButton" title="Проверить программу на всех мирах">✓ Run all</button>
+          <button id="prevCaseButton" title="Предыдущий вход">‹ Input</button>
+          <button id="nextCaseButton" title="Следующий вход">Input ›</button>
+          <button id="replayFailButton" title="Показать контрпример">Replay fail</button>
         </div>
 
         <div class="code-preview" aria-label="Текущая строка выполнения">
@@ -45,6 +59,16 @@
       </section>
 
       <section class="info-panel" aria-label="Состояние программы">
+        <div class="info-block">
+          <h2>Текущий вход</h2>
+          <div id="casePanel" class="mono empty-note"></div>
+        </div>
+
+        <div class="info-block">
+          <h2>Проверки</h2>
+          <div id="testsPanel" class="tests-panel empty-note">Пока не запускали</div>
+        </div>
+
         <div class="info-block">
           <h2>Состояние</h2>
           <dl id="robotState" class="state-list"></dl>
@@ -73,7 +97,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/pyodide/v314.0.6/full/pyodide.js"></script>
-    <script src="levels.js?v=20260909-3"></script>
-    <script src="app.js?v=20260909-3"></script>
+    <script src="levels.js?v=20260909-4"></script>
+    <script src="app.js?v=20260909-4"></script>
   </body>
 </html>
