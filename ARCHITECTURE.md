@@ -9,20 +9,22 @@ The app is a static GitHub Pages site:
 - `levels.js` - level data.
 - `app.js` - parser, interpreter, world engine, tracing, checks, UI rendering.
 
-There is no backend and no build step.
+There is no backend and no build step. Python runs in the browser through Pyodide.
 
 ## Execution model
 
-Student code is parsed by a small educational parser. It does not execute arbitrary JavaScript or arbitrary Python. The parser supports only the syntax needed for the first lessons:
+Student code is executed by a real Pyodide Python runtime. The app injects a hidden educational `robot` module and also exposes its most common commands directly as globals:
 
-- function calls;
-- assignment;
-- `for i in range(...)`;
-- `if/elif/else`;
-- `def name():`;
-- simple expressions.
+- `go`;
+- `turn_left`;
+- `turn_right`;
+- `front_is_clear`;
+- `at_goal`;
+- `pick`;
+- `read_number`;
+- `say`.
 
-The interpreter walks the AST and mutates the world state through controlled API functions. Every meaningful action emits a trace event:
+The Python runner uses `sys.settrace` to record source-line events from the student program. The hidden robot API mutates world state and emits action trace events:
 
 ```json
 {
@@ -37,9 +39,9 @@ The UI playback uses these snapshots for Run and Step.
 
 ## Sandboxing
 
-This MVP intentionally avoids running general Python in the browser. The supported syntax is limited, and commands are mapped to safe educational actions. There is no file access, network access, imports, or arbitrary code execution.
+The app runs in the browser and has no backend. This means student code cannot affect the server or the tutor's machine, but Pyodide is a real Python runtime and should not be treated as a strong security sandbox.
 
-The interpreter also has a maximum operation count to stop runaway loops.
+The runner adds a maximum traced-line count to stop runaway loops. The robot API is controlled, and output is captured into the UI.
 
 ## Checks
 
@@ -52,4 +54,3 @@ Each level can define checks:
 - `tests` for hidden input/output tests.
 
 For I/O levels, hidden tests catch hardcoded sample answers. For example, if the visible input is `5` and the learner writes `print(6)`, the visible example passes but hidden tests fail with a gentle message.
-

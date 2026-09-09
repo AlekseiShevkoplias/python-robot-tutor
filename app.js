@@ -33,6 +33,318 @@ let currentLevel = window.ROBOT_LEVELS[0];
 let currentState = null;
 let lastRun = null;
 let playbackIndex = -1;
+let pyodideReadyPromise = null;
+let pyodideRuntime = null;
+
+const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.6/full/";
+const PYTHON_ENGINE_SOURCE = `
+import builtins
+import json
+import math
+import random
+import sys
+import traceback
+import types
+
+DIRS = ["N", "E", "S", "W"]
+DELTAS = {
+    "N": {"x": 0, "y": -1},
+    "E": {"x": 1, "y": 0},
+    "S": {"x": 0, "y": 1},
+    "W": {"x": -1, "y": 0},
+}
+
+class RobotError(Exception):
+    def __init__(self, message, line=None):
+        super().__init__(message)
+        self.line = line
+
+def _safe_value(value, depth=0):
+    if depth > 2:
+        return "..."
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_safe_value(item, depth + 1) for item in value[:20]]
+    if isinstance(value, dict):
+        return {str(key): _safe_value(item, depth + 1) for key, item in list(value.items())[:20]}
+    return repr(value)
+
+def _run_robot_program(source, level_json, input_override_json=None, silent=False):
+    level = json.loads(level_json)
+    input_queue = json.loads(input_override_json) if input_override_json else list(level.get("inputQueue") or [])
+    world = level["world"]
+    state = {
+        "robot": {
+            "x": world["start"]["x"],
+            "y": world["start"]["y"],
+            "dir": world["start"]["dir"],
+            "inventory": [],
+        },
+        "items": json.loads(json.dumps(world.get("items") or [])),
+        "variables": {},
+        "output": [],
+        "inputQueue": input_queue,
+        "inputUsed": 0,
+        "error": None,
+        "success": False,
+    }
+    events = []
+    op_count = 0
+    max_ops = 1200
+    api_names = {
+        "go", "turn_left", "turn_right", "turn", "pick", "say", "print",
+        "front_is_clear", "right_is_clear", "left_is_clear", "at_goal", "on_item",
+        "read_number", "read_text",
+    }
+
+    def public_vars(frame=None):
+        raw = {}
+        if frame is not None:
+            raw.update(frame.f_globals)
+            raw.update(frame.f_locals)
+        visible = {}
+        hidden = set(api_names) | {
+            "__builtins__", "math", "random", "robot", "range", "len", "int", "str", "bool",
+            "_record", "_snapshot", "_safe_value"
+        }
+        for name, value in raw.items():
+            if name.startswith("__") or name in hidden:
+                continue
+            if isinstance(value, types.ModuleType) or callable(value):
+                continue
+            visible[name] = _safe_value(value)
+        return visible
+
+    def snapshot(frame=None):
+        copied = json.loads(json.dumps(state))
+        copied["variables"] = public_vars(frame)
+        return copied
+
+    def record(line, message, kind="step", frame=None):
+        state["variables"] = public_vars(frame)
+        if not silent:
+            events.append({"line": line, "message": message, "kind": kind, "snapshot": snapshot(frame)})
+
+    def cell_key(pos):
+        return f"{pos['x']},{pos['y']}"
+
+    def is_wall(x, y):
+        if x < 0 or y < 0 or x >= world["width"] or y >= world["height"]:
+            return True
+        return any(wall["x"] == x and wall["y"] == y for wall in world.get("walls") or [])
+
+    def next_cell():
+        delta = DELTAS[state["robot"]["dir"]]
+        return {"x": state["robot"]["x"] + delta["x"], "y": state["robot"]["y"] + delta["y"]}
+
+    def caller_line():
+        try:
+            return sys._getframe(2).f_lineno
+        except Exception:
+            return None
+
+    def go(n=1):
+        line = caller_line()
+        if not isinstance(n, int) or n < 0:
+            raise RobotError("go(n) ждет целое число шагов: например go(3).", line)
+        record(line, f"go({n})")
+        for _ in range(n):
+            nxt = next_cell()
+            if is_wall(nxt["x"], nxt["y"]):
+                raise RobotError("Робот попытался пойти в стену. Проверь маршрут перед этой строкой.", line)
+            state["robot"]["x"] = nxt["x"]
+            state["robot"]["y"] = nxt["y"]
+            record(line, f"Робот сделал шаг в клетку ({nxt['x']}, {nxt['y']}).", "move")
+
+    def _turn_amount(amount, line=None):
+        if line is None:
+            line = caller_line()
+        if amount not in (90, -90, 180, -180):
+            raise RobotError("turn(angle) поддерживает 90, -90 и 180.", line)
+        idx = DIRS.index(state["robot"]["dir"])
+        state["robot"]["dir"] = DIRS[(idx + amount // 90 + 400) % 4]
+        record(line, f"Робот повернул. Теперь направление: {state['robot']['dir']}.", "turn")
+
+    def turn_right():
+        _turn_amount(90, caller_line())
+
+    def turn_left():
+        _turn_amount(-90, caller_line())
+
+    def turn(angle):
+        _turn_amount(angle, caller_line())
+
+    def _clear_for(direction):
+        dir_name = state["robot"]["dir"]
+        if direction == "right":
+            dir_name = DIRS[(DIRS.index(dir_name) + 1) % 4]
+        elif direction == "left":
+            dir_name = DIRS[(DIRS.index(dir_name) + 3) % 4]
+        delta = DELTAS[dir_name]
+        x = state["robot"]["x"] + delta["x"]
+        y = state["robot"]["y"] + delta["y"]
+        return not is_wall(x, y)
+
+    def front_is_clear():
+        return _clear_for("front")
+
+    def right_is_clear():
+        return _clear_for("right")
+
+    def left_is_clear():
+        return _clear_for("left")
+
+    def at_goal():
+        goal = world.get("goal")
+        return bool(goal and state["robot"]["x"] == goal["x"] and state["robot"]["y"] == goal["y"])
+
+    def on_item():
+        return any(item["x"] == state["robot"]["x"] and item["y"] == state["robot"]["y"] for item in state["items"])
+
+    def pick():
+        line = caller_line()
+        for index, item in enumerate(state["items"]):
+            if item["x"] == state["robot"]["x"] and item["y"] == state["robot"]["y"]:
+                state["items"].pop(index)
+                state["robot"]["inventory"].append(item.get("name") or "предмет")
+                record(line, f"Робот поднял: {item.get('name') or 'предмет'}.", "item")
+                return
+        raise RobotError("Здесь нет предмета. pick() работает только на клетке с предметом.", line)
+
+    def read_number():
+        line = caller_line()
+        if state["inputUsed"] >= len(state["inputQueue"]):
+            raise RobotError("Программа пытается прочитать число, но во входе больше ничего нет.", line)
+        value = state["inputQueue"][state["inputUsed"]]
+        state["inputUsed"] += 1
+        try:
+            number = int(value)
+        except Exception:
+            raise RobotError(f"Ожидалось число, но во вводе лежит {value!r}.", line)
+        record(line, f"read_number() взял {number}")
+        return number
+
+    def read_text():
+        line = caller_line()
+        if state["inputUsed"] >= len(state["inputQueue"]):
+            raise RobotError("Программа пытается прочитать текст, но во входе больше ничего нет.", line)
+        value = str(state["inputQueue"][state["inputUsed"]])
+        state["inputUsed"] += 1
+        record(line, f"read_text() взял {value!r}")
+        return value
+
+    def say(*values):
+        line = caller_line()
+        text = " ".join(str(value) for value in values)
+        state["output"].append(text)
+        record(line, f"say: {text}", "output")
+
+    def print_(*values, sep=" ", end="\\n"):
+        line = caller_line()
+        text = sep.join(str(value) for value in values)
+        if end and end != "\\n":
+            text += end
+        state["output"].append(text)
+        record(line, f"print: {text}", "output")
+
+    robot = types.ModuleType("robot")
+    env = {
+        "go": go,
+        "turn_left": turn_left,
+        "turn_right": turn_right,
+        "turn": turn,
+        "front_is_clear": front_is_clear,
+        "right_is_clear": right_is_clear,
+        "left_is_clear": left_is_clear,
+        "at_goal": at_goal,
+        "on_item": on_item,
+        "pick": pick,
+        "read_number": read_number,
+        "read_text": read_text,
+        "say": say,
+        "print": print_,
+        "math": math,
+        "random": random,
+        "range": range,
+        "len": len,
+        "int": int,
+        "str": str,
+        "bool": bool,
+    }
+    for name, value in env.items():
+        setattr(robot, name, value)
+    sys.modules["robot"] = robot
+
+    allowed_builtins = dict(vars(builtins))
+    allowed_builtins["print"] = print_
+    env["__builtins__"] = allowed_builtins
+
+    def trace_func(frame, event, arg):
+        nonlocal op_count
+        if frame.f_code.co_filename != "<student>":
+            return trace_func
+        if event == "line":
+            op_count += 1
+            if op_count > max_ops:
+                raise RobotError("Программа сделала слишком много шагов. Возможно, цикл повторяется слишком долго.", frame.f_lineno)
+            record(frame.f_lineno, "Выполняется строка.", "line", frame)
+        return trace_func
+
+    try:
+        compiled = compile(source, "<student>", "exec")
+        old_trace = sys.gettrace()
+        sys.settrace(trace_func)
+        try:
+            exec(compiled, env, env)
+        finally:
+            sys.settrace(old_trace)
+        state["variables"] = public_vars(types.SimpleNamespace(f_globals=env, f_locals=env))
+        if not silent:
+            events.append({"line": None, "message": "Программа закончилась.", "kind": "done", "snapshot": snapshot(types.SimpleNamespace(f_globals=env, f_locals=env))})
+    except SyntaxError as error:
+        state["error"] = {
+            "message": f"Python не понял синтаксис на строке {error.lineno}. Проверь скобки, двоеточие и отступы.",
+            "line": error.lineno,
+            "raw": "".join(traceback.format_exception_only(type(error), error)).strip(),
+        }
+        if not silent:
+            events.append({"line": error.lineno, "message": state["error"]["message"], "kind": "error", "snapshot": snapshot()})
+    except RobotError as error:
+        state["error"] = {"message": str(error), "line": error.line, "raw": str(error)}
+        if not silent:
+            events.append({"line": error.line, "message": str(error), "kind": "error", "snapshot": snapshot()})
+    except NameError as error:
+        line = None
+        tb = traceback.extract_tb(error.__traceback__)
+        for item in reversed(tb):
+            if item.filename == "<student>":
+                line = item.lineno
+                break
+        state["error"] = {
+            "message": f"Python не знает это имя. Возможно, опечатка в переменной или команде: {error}",
+            "line": line,
+            "raw": "".join(traceback.format_exception_only(type(error), error)).strip(),
+        }
+        if not silent:
+            events.append({"line": line, "message": state["error"]["message"], "kind": "error", "snapshot": snapshot()})
+    except Exception as error:
+        line = None
+        tb = traceback.extract_tb(error.__traceback__)
+        for item in reversed(tb):
+            if item.filename == "<student>":
+                line = item.lineno
+                break
+        state["error"] = {
+            "message": f"Python остановился на ошибке: {error}",
+            "line": line,
+            "raw": "".join(traceback.format_exception_only(type(error), error)).strip(),
+        }
+        if not silent:
+            events.append({"line": line, "message": state["error"]["message"], "kind": "error", "snapshot": snapshot()})
+
+    return json.dumps({"state": state, "events": events}, ensure_ascii=False)
+`;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -55,6 +367,33 @@ function createInitialState(level, inputQueueOverride) {
     error: null,
     success: false
   };
+}
+
+function setExecutionControlsDisabled(disabled) {
+  els.runButton.disabled = disabled;
+  els.stepButton.disabled = disabled;
+}
+
+async function initPyodideEngine() {
+  setExecutionControlsDisabled(true);
+  setBanner("Загружаю настоящий Python в браузере...");
+  if (typeof loadPyodide !== "function") {
+    setExecutionControlsDisabled(false);
+    setBanner("Pyodide не загрузился. Проверь интернет и обнови страницу.", "error");
+    return null;
+  }
+  try {
+    pyodideRuntime = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+    pyodideRuntime.runPython(PYTHON_ENGINE_SOURCE);
+    setExecutionControlsDisabled(false);
+    setBanner("Python готов. Перед запуском попробуй предсказать результат.");
+    return pyodideRuntime;
+  } catch (error) {
+    setExecutionControlsDisabled(false);
+    setBanner("Не получилось загрузить Python. Попробуй обновить страницу.", "error");
+    console.error(error);
+    return null;
+  }
 }
 
 function snapshot(state) {
@@ -458,7 +797,7 @@ function readNumber(context, line) {
   return value;
 }
 
-function executeProgram(level, code, options = {}) {
+function executeLimitedProgram(level, code, options = {}) {
   const ast = parseProgram(code);
   const state = createInitialState(level, options.inputQueue);
   const events = [];
@@ -491,6 +830,34 @@ function executeProgram(level, code, options = {}) {
   }
 
   return { state, events };
+}
+
+async function executeProgram(level, code, options = {}) {
+  const runtime = await pyodideReadyPromise;
+  if (!runtime) {
+    return executeLimitedProgram(level, code, options);
+  }
+
+  runtime.globals.set("__robot_source", code);
+  runtime.globals.set("__robot_level_json", JSON.stringify(level));
+  runtime.globals.set("__robot_input_json", options.inputQueue ? JSON.stringify(options.inputQueue) : "");
+  runtime.globals.set("__robot_silent", Boolean(options.silent));
+
+  try {
+    const raw = runtime.runPython("_run_robot_program(__robot_source, __robot_level_json, __robot_input_json, __robot_silent)");
+    return JSON.parse(raw);
+  } catch (error) {
+    const state = createInitialState(level, options.inputQueue);
+    state.error = {
+      message: "Python runtime остановился на неожиданной ошибке.",
+      line: null,
+      raw: String(error)
+    };
+    return {
+      state,
+      events: [{ line: null, message: state.error.message, kind: "error", snapshot: snapshot(state) }]
+    };
+  }
 }
 
 function executeBlock(nodes, context) {
@@ -669,6 +1036,7 @@ function levenshtein(a, b) {
 
 function formatValue(value) {
   if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;
+  if (value && typeof value === "object") return JSON.stringify(value);
   if (typeof value === "boolean") return value ? "True" : "False";
   return String(value);
 }
@@ -689,13 +1057,13 @@ function checkSolution(level, code, state) {
   return { ok: issues.length === 0, issues };
 }
 
-function runHiddenTests(level, code, visibleState) {
+async function runHiddenTests(level, code, visibleState) {
   const tests = level.checks?.tests || [];
   if (tests.length === 0 || visibleState.error) return null;
   const visible = checkSolution(level, code, visibleState);
   const failures = [];
   for (const test of tests) {
-    const result = executeProgram(level, code, { silent: true, inputQueue: test.inputQueue });
+    const result = await executeProgram(level, code, { silent: true, inputQueue: test.inputQueue });
     const actual = result.state.output.join("\n").trim();
     if (result.state.error || actual !== String(test.expectedOutput)) {
       failures.push({ input: test.inputQueue, expected: test.expectedOutput, actual: actual || "пустой вывод" });
@@ -803,9 +1171,12 @@ function setBanner(message, type = "") {
   els.statusBanner.className = `status-banner ${type}`.trim();
 }
 
-function prepareRun() {
+async function prepareRun() {
   const code = els.codeEditor.value;
-  lastRun = executeProgram(currentLevel, code);
+  setExecutionControlsDisabled(true);
+  setBanner("Python выполняет программу...");
+  lastRun = await executeProgram(currentLevel, code);
+  setExecutionControlsDisabled(false);
   playbackIndex = -1;
   currentState = createInitialState(currentLevel);
   renderAll(currentState);
@@ -816,7 +1187,7 @@ function prepareRun() {
   }
 }
 
-function showEvent(index) {
+async function showEvent(index) {
   if (!lastRun || lastRun.events.length === 0) return;
   playbackIndex = Math.max(0, Math.min(index, lastRun.events.length - 1));
   const event = lastRun.events[playbackIndex];
@@ -825,16 +1196,16 @@ function showEvent(index) {
   if (event.kind === "error") {
     setBanner(event.message, "error");
   } else if (playbackIndex === lastRun.events.length - 1) {
-    finishRunMessage();
+    await finishRunMessage();
   } else {
     setBanner(event.message);
   }
 }
 
-function finishRunMessage() {
+async function finishRunMessage() {
   const code = els.codeEditor.value;
   const result = checkSolution(currentLevel, code, currentState);
-  const hidden = runHiddenTests(currentLevel, code, currentState);
+  const hidden = await runHiddenTests(currentLevel, code, currentState);
   if (currentState.error) {
     setBanner(currentState.error.message, "error");
   } else if (hidden && !hidden.ok && hidden.message) {
@@ -846,16 +1217,16 @@ function finishRunMessage() {
   }
 }
 
-function runToEnd() {
-  prepareRun();
+async function runToEnd() {
+  await prepareRun();
   if (lastRun.events.length === 0) return;
-  showEvent(lastRun.events.length - 1);
+  await showEvent(lastRun.events.length - 1);
 }
 
-function step() {
-  if (!lastRun || playbackIndex >= lastRun.events.length - 1) prepareRun();
+async function step() {
+  if (!lastRun || playbackIndex >= lastRun.events.length - 1) await prepareRun();
   if (!lastRun || lastRun.events.length === 0) return;
-  showEvent(playbackIndex + 1);
+  await showEvent(playbackIndex + 1);
 }
 
 function resetWorld() {
@@ -900,11 +1271,24 @@ function init() {
     renderCodeLines();
     setBanner("Код изменен. Запусти заново или сделай Step.");
   });
-  els.runButton.addEventListener("click", runToEnd);
-  els.stepButton.addEventListener("click", step);
+  els.runButton.addEventListener("click", () => {
+    runToEnd().catch((error) => {
+      setExecutionControlsDisabled(false);
+      setBanner("Не получилось выполнить программу. Проверь консоль браузера.", "error");
+      console.error(error);
+    });
+  });
+  els.stepButton.addEventListener("click", () => {
+    step().catch((error) => {
+      setExecutionControlsDisabled(false);
+      setBanner("Не получилось выполнить шаг. Проверь консоль браузера.", "error");
+      console.error(error);
+    });
+  });
   els.resetButton.addEventListener("click", resetWorld);
   els.starterButton.addEventListener("click", restoreStarter);
   loadLevel(currentLevel);
+  pyodideReadyPromise = initPyodideEngine();
 }
 
 init();
