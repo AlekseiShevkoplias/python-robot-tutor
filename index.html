@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Python Robot Tutor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="editor-panel" aria-label="Редактор кода">
+        <div class="topbar">
+          <div>
+            <h1>Python Robot Tutor</h1>
+            <p id="levelConcept" class="concept"></p>
+          </div>
+          <select id="levelSelect" class="level-select" aria-label="Выбор уровня"></select>
+        </div>
+
+        <div class="lesson-strip">
+          <h2 id="levelTitle"></h2>
+          <p id="levelDescription"></p>
+          <div id="levelGoal" class="goal-line"></div>
+        </div>
+
+        <label class="editor-label" for="codeEditor">Код</label>
+        <textarea id="codeEditor" spellcheck="false" autocomplete="off"></textarea>
+
+        <div class="controls" aria-label="Управление запуском">
+          <button id="runButton" title="Запустить всю программу">▶ Run</button>
+          <button id="stepButton" title="Выполнить следующий шаг">↦ Step</button>
+          <button id="resetButton" title="Сбросить мир">↺ Reset</button>
+          <button id="starterButton" title="Вернуть стартовый код">⟲ Starter</button>
+        </div>
+
+        <div class="code-preview" aria-label="Текущая строка выполнения">
+          <div class="preview-title">Шаги кода</div>
+          <div id="codeLines"></div>
+        </div>
+      </section>
+
+      <section class="world-panel" aria-label="Мир робота">
+        <div id="grid" class="grid"></div>
+        <div id="statusBanner" class="status-banner">Нажми Run или Step.</div>
+      </section>
+
+      <section class="info-panel" aria-label="Состояние программы">
+        <div class="info-block">
+          <h2>Состояние</h2>
+          <dl id="robotState" class="state-list"></dl>
+        </div>
+
+        <div class="info-block">
+          <h2>Переменные</h2>
+          <div id="variablesPanel" class="mono empty-note">Пока пусто</div>
+        </div>
+
+        <div class="info-block">
+          <h2>Ввод</h2>
+          <div id="inputPanel" class="mono empty-note"></div>
+        </div>
+
+        <div class="info-block">
+          <h2>Вывод</h2>
+          <pre id="outputPanel" class="output"></pre>
+        </div>
+
+        <div class="info-block trace-block">
+          <h2>Трасса</h2>
+          <ol id="tracePanel" class="trace"></ol>
+        </div>
+      </section>
+    </main>
+
+    <script src="levels.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
+
